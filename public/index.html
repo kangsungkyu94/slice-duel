@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Slice Duel</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=Noto+Sans+KR:wght@400;700&display=swap">
+<style>
+  :root {
+    --bg: #0a0a12; --fg: #e8e6f0; --fg-dim: #8885a0;
+    --accent-1: #ff6b4a; --accent-2: #4ac8ff;
+    --blade: #d4d0e8; --surface: #16162a;
+    --danger: #ff4444; --success: #44dd88;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f0eef5; --fg: #1a1828; --fg-dim: #7a7890;
+      --accent-1: #e04a2a; --accent-2: #1a8abf;
+      --blade: #555; --surface: #dddae8;
+      --danger: #cc2222; --success: #22aa55;
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0a0a12; --fg: #e8e6f0; --fg-dim: #8885a0;
+    --accent-1: #ff6b4a; --accent-2: #4ac8ff;
+    --blade: #d4d0e8; --surface: #16162a;
+    --danger: #ff4444; --success: #44dd88;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: 'Noto Sans KR', 'Space Grotesk', sans-serif;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    user-select: none; -webkit-user-select: none; touch-action: none;
+  }
+
+  #game-container {
+    position: relative; width: 100%; max-width: 600px;
+    height: 100%; max-height: 850px;
+    display: flex; flex-direction: column;
+  }
+
+  .hud {
+    display: flex; justify-content: center; align-items: center;
+    padding: 10px 0; gap: 8px; flex-shrink: 0; flex-wrap: wrap;
+  }
+  .players-hud {
+    display: flex; gap: 4px; flex-wrap: wrap; align-items: center; justify-content: center; flex: 1;
+  }
+  .player-chip {
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700;
+    font-size: 11px; letter-spacing: 0.03em;
+    padding: 4px 10px; border-radius: 12px; color: #fff;
+    opacity: 0.35; white-space: nowrap;
+    transition: transform 0.2s, opacity 0.2s, box-shadow 0.2s;
+  }
+  .player-chip.active {
+    opacity: 1; transform: scale(1.12);
+    box-shadow: 0 0 12px currentColor;
+  }
+  .round-info {
+    font-family: 'Space Grotesk', sans-serif; font-size: 13px;
+    color: var(--fg-dim); letter-spacing: 0.08em; text-transform: uppercase; flex-shrink: 0;
+  }
+
+  #arena {
+    flex: 1; position: relative; overflow: hidden;
+    border-radius: 16px; background: var(--surface);
+    transition: box-shadow 0.3s;
+  }
+  #canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  #knife-btn {
+    position: absolute; left: 50%; bottom: 10%;
+    transform: translateX(-50%);
+    font-size: 52px; z-index: 5; cursor: pointer;
+    filter: drop-shadow(0 0 14px rgba(255,255,255,0.35));
+    transition: transform 0.1s;
+    padding: 12px 16px; line-height: 1;
+  }
+  #knife-btn:active { transform: translateX(-50%) scale(1.3) rotate(-25deg); }
+  #knife-btn.hidden { display: none; }
+
+  .size-info {
+    font-family: 'Space Grotesk', sans-serif; font-size: 12px;
+    color: var(--fg-dim); text-align: center; padding: 6px 0 2px; flex-shrink: 0;
+  }
+  .controls-hint {
+    font-family: 'Space Grotesk', sans-serif; font-size: 11px;
+    color: var(--fg-dim); text-align: center; padding: 2px 0 6px; flex-shrink: 0;
+    letter-spacing: 0.03em;
+  }
+
+  .overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 85%, transparent);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .overlay[hidden] { display: none; }
+  .overlay h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(28px, 6vw, 48px); font-weight: 700;
+    letter-spacing: -0.02em; text-align: center; line-height: 1.2;
+  }
+  .overlay h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 22px; font-weight: 700; letter-spacing: -0.01em;
+  }
+  .overlay p {
+    font-size: 14px; color: var(--fg-dim); text-align: center;
+    max-width: 320px; line-height: 1.6;
+  }
+
+  .start-btn {
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700;
+    font-size: 16px; letter-spacing: 0.05em; text-transform: uppercase;
+    padding: 14px 40px; border: none; border-radius: 30px;
+    background: var(--accent-1); color: #fff; cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .start-btn:hover { transform: scale(1.05); box-shadow: 0 4px 24px rgba(255,107,74,0.4); }
+  .start-btn:active { transform: scale(0.97); }
+  .start-btn:disabled { opacity: 0.3; cursor: default; transform: none; box-shadow: none; }
+
+  .menu-group {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 12px; width: 100%; max-width: 280px;
+  }
+  .join-row { display: flex; gap: 8px; width: 100%; align-items: center; }
+  .code-input {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px; letter-spacing: 0.15em;
+    text-transform: uppercase; text-align: center;
+    flex: 1; min-width: 0;
+    padding: 10px 14px; border: 2px solid color-mix(in srgb, var(--fg-dim) 50%, transparent);
+    border-radius: 14px; background: var(--surface); color: var(--fg); outline: none;
+    transition: border-color 0.2s;
+  }
+  .code-input:focus { border-color: var(--accent-2); }
+  .code-input::placeholder { color: var(--fg-dim); letter-spacing: 0.08em; font-size: 14px; }
+  .join-btn {
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700;
+    font-size: 14px; padding: 11px 22px; border: none; border-radius: 14px;
+    background: var(--accent-2); color: #fff; cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .join-btn:active { transform: scale(0.95); }
+  .local-btn {
+    font-family: 'Space Grotesk', sans-serif; font-size: 13px;
+    background: none; border: 1px solid var(--fg-dim); color: var(--fg-dim);
+    padding: 8px 20px; border-radius: 16px; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .local-btn:hover { border-color: var(--fg); color: var(--fg); }
+  .or-divider { font-size: 12px; color: var(--fg-dim); letter-spacing: 0.1em; }
+
+  .room-code-box {
+    display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 8px;
+  }
+  .room-code-label {
+    font-size: 12px; color: var(--fg-dim); letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .room-code-value {
+    font-family: 'Space Grotesk', monospace; font-size: 36px; font-weight: 700;
+    letter-spacing: 0.25em; color: var(--accent-2); text-transform: uppercase;
+  }
+  .copy-btn {
+    font-family: 'Space Grotesk', sans-serif; font-size: 12px;
+    background: var(--surface); border: 1px solid var(--fg-dim); color: var(--fg-dim);
+    padding: 4px 14px; border-radius: 10px; cursor: pointer;
+  }
+  .copy-btn:active { background: var(--fg-dim); color: var(--bg); }
+
+  .player-list {
+    width: 100%; max-width: 260px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .player-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px; border-radius: 10px; background: var(--surface); font-size: 14px;
+  }
+  .player-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .player-name { flex: 1; }
+  .player-badge { font-size: 11px; color: var(--fg-dim); }
+  .player-count { font-size: 13px; color: var(--fg-dim); margin: 4px 0; }
+  .leave-btn {
+    font-family: 'Space Grotesk', sans-serif; font-size: 12px;
+    background: none; border: none; color: var(--fg-dim); cursor: pointer;
+    margin-top: 4px; text-decoration: underline;
+  }
+
+  .game-log {
+    margin-top: 8px; max-height: 180px; overflow-y: auto;
+    width: 100%; max-width: 360px; text-align: left;
+    font-family: 'Space Grotesk', monospace; font-size: 11px; line-height: 1.6;
+    color: var(--fg-dim); background: var(--surface);
+    border-radius: 8px; padding: 10px 14px;
+  }
+  .game-log .log-cut { color: var(--fg); }
+  .game-log .log-appear { color: var(--accent-2); }
+
+  .nick-screen {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 20px; position: absolute; inset: 0; z-index: 20;
+    background: var(--bg);
+  }
+  .nick-screen[hidden] { display: none; }
+  .nick-screen h1 { font-family: 'Space Grotesk', sans-serif; font-size: 40px; }
+  .nick-input {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 24px; font-weight: 700; letter-spacing: 0.08em;
+    text-align: center; width: 220px;
+    padding: 12px 16px; border: 2px solid var(--fg-dim);
+    border-radius: 16px; background: var(--surface); color: var(--fg); outline: none;
+    transition: border-color 0.2s;
+  }
+  .nick-input:focus { border-color: var(--accent-1); }
+  .nick-input::placeholder { color: var(--fg-dim); font-size: 16px; font-weight: 400; letter-spacing: 0.04em; }
+  .nick-charcount { font-family: 'Space Grotesk', sans-serif; font-size: 12px; color: var(--fg-dim); margin-top: -12px; }
+  .nick-error { font-size: 13px; color: var(--danger); min-height: 18px; }
+
+  .toast {
+    position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+    background: var(--danger); color: #fff; padding: 10px 24px;
+    border-radius: 12px; font-size: 14px; z-index: 100;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #knife-btn, .player-chip, .start-btn { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div class="hud" id="hud" style="display:none">
+    <div class="players-hud" id="players-hud"></div>
+    <div class="round-info" id="round-info">ROUND 1</div>
+  </div>
+  <div id="arena">
+    <canvas id="canvas"></canvas>
+    <div id="knife-btn" class="hidden">🔪</div>
+
+    <!-- NICKNAME -->
+    <div class="nick-screen" id="nick-screen">
+      <h1>⚔️ Slice Duel</h1>
+      <p style="font-size:14px;color:var(--fg-dim);text-align:center;max-width:280px;line-height:1.6">닉네임을 설정하세요</p>
+      <input class="nick-input" id="nick-input" placeholder="닉네임" maxlength="8" autocomplete="off" spellcheck="false">
+      <div class="nick-charcount" id="nick-charcount">0 / 8</div>
+      <div class="nick-error" id="nick-error">&nbsp;</div>
+      <button class="start-btn" id="nick-confirm-btn">확인</button>
+    </div>
+
+    <!-- MENU -->
+    <div class="overlay" id="menu-overlay" hidden>
+      <h1>⚔️ Slice Duel</h1>
+      <p>드래그로 칼날을 회전시키고,<br>🔪를 눌러 타이밍에 맞춰 잘라라!<br>작은 쪽이 남고, 허공을 벤 사람이 진다.</p>
+      <div class="menu-group">
+        <button class="start-btn" id="create-btn">방 만들기</button>
+        <div class="join-row">
+          <input class="code-input" id="code-input" placeholder="초대 코드" maxlength="6" autocomplete="off" spellcheck="false">
+          <button class="join-btn" id="join-btn">입장</button>
+        </div>
+        <div class="or-divider">또는</div>
+        <button class="local-btn" id="local-btn">로컬 플레이 (2인)</button>
+      </div>
+      <p style="font-size:12px;margin-top:4px">🖱️ Q/E 회전 · 📱 드래그 회전 · 🔪 터치로 자르기</p>
+    </div>
+
+    <!-- WAITING ROOM -->
+    <div class="overlay" id="waiting-overlay" hidden>
+      <h2>대기실</h2>
+      <div class="room-code-box">
+        <div class="room-code-label">초대 코드</div>
+        <div class="room-code-value" id="room-code-display">------</div>
+        <button class="copy-btn" id="copy-btn">복사</button>
+      </div>
+      <div class="player-list" id="player-list"></div>
+      <div class="player-count" id="player-count">0 / 8</div>
+      <button class="start-btn" id="game-start-btn" style="display:none">게임 시작</button>
+      <p id="waiting-msg" style="font-size:13px;color:var(--fg-dim)">호스트가 게임을 시작합니다...</p>
+      <button class="leave-btn" id="leave-btn">나가기</button>
+    </div>
+
+    <!-- RESULT -->
+    <div class="overlay" id="result-overlay" hidden>
+      <h1 class="winner-text" id="winner-text"></h1>
+      <p id="result-detail"></p>
+      <div class="game-log" id="game-log"></div>
+      <button class="start-btn" id="restart-btn">다시 하기</button>
+    </div>
+  </div>
+  <div class="size-info" id="size-info">&nbsp;</div>
+  <div class="controls-hint" id="controls-hint">&nbsp;</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  /* ===== DOM ===== */
+  var $ = function(id) { return document.getElementById(id); };
+  var canvas = $('canvas'), ctx = canvas.getContext('2d');
+  var arena = $('arena'), knifeBtn = $('knife-btn');
+  var hudEl = $('hud'), playersHud = $('players-hud'), roundInfo = $('round-info');
+  var menuOverlay = $('menu-overlay');
+  var waitingOverlay = $('waiting-overlay');
+  var resultOverlay = $('result-overlay');
+  var winnerText = $('winner-text'), resultDetail = $('result-detail');
+  var sizeInfo = $('size-info'), controlsHint = $('controls-hint');
+
+  /* ===== CONSTANTS ===== */
+  var COLORS = ['#ff6b4a','#4ac8ff','#ffcc44','#88dd55','#ff88cc','#aa77ff','#ff9944','#55ddcc'];
+  var ROT_SPEED_KEY = 3;
+  var ROT_SPEED_DRAG = 0.008;
+  var SPEED_FACTOR = 0.13;
+  var SPEED_ROUND_ACCEL = 0.15;
+  var TINY_AREA_THRESHOLD = 1;
+  var ROUND_TIME_LIMIT = 10;
+  var PRESENCE_INTERVAL = 80;
+
+  /* ===== GLOBALS ===== */
+  var socket = null;
+  var myName = '';
+  var mySocketId = null;
+  var isHost = false, roomCode = '', isOnline = false;
+
+  var players = [];
+  var myIdx = -1;
+
+  var state = null, animId = null, lastTime = 0;
+  var gameLog = [];
+  var dpr = 1, aw = 0, ah = 0;
+  var keysDown = {};
+  var dragActive = false, dragLastX = 0;
+  var cutAnim = null;
+  var roundTimer = 0;
+  var lastPresenceTime = 0;
+  var phase = 'nick';
+
+  /* ===== TOAST ===== */
+  var toastTimer = null;
+  function showToast(msg) {
+    var t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function() { t.classList.remove('show'); }, 3000);
+  }
+
+  /* ===== GEOMETRY ===== */
+
+  function polyArea(v) {
+    var a = 0, n = v.length;
+    for (var i = 0; i < n; i++) {
+      var j = (i + 1) % n;
+      a += v[i].x * v[j].y - v[j].x * v[i].y;
+    }
+    return Math.abs(a) / 2;
+  }
+
+  function polyCentroid(v) {
+    var cx = 0, cy = 0;
+    for (var i = 0; i < v.length; i++) { cx += v[i].x; cy += v[i].y; }
+    return { x: cx / v.length, y: cy / v.length };
+  }
+
+  function rotPt(p, a) {
+    var c = Math.cos(a), s = Math.sin(a);
+    return { x: p.x * c - p.y * s, y: p.x * s + p.y * c };
+  }
+
+  function toWorld(local, cx, cy, angle) {
+    return local.map(function(p) { var r = rotPt(p, angle); return { x: r.x + cx, y: r.y + cy }; });
+  }
+
+  function clipPoly(verts, lineX, keepLeft) {
+    var out = [], n = verts.length;
+    if (n < 3) return null;
+    for (var i = 0; i < n; i++) {
+      var curr = verts[i], next = verts[(i + 1) % n];
+      var cIn = keepLeft ? curr.x <= lineX + 0.001 : curr.x >= lineX - 0.001;
+      var nIn = keepLeft ? next.x <= lineX + 0.001 : next.x >= lineX - 0.001;
+      if (cIn) out.push({ x: curr.x, y: curr.y });
+      if (cIn !== nIn) {
+        var dx = next.x - curr.x;
+        if (Math.abs(dx) > 1e-12) {
+          var t = (lineX - curr.x) / dx;
+          out.push({ x: lineX, y: curr.y + t * (next.y - curr.y) });
+        }
+      }
+    }
+    return out.length >= 3 ? out : null;
+  }
+
+  function splitPoly(verts, lineX) {
+    var left = clipPoly(verts, lineX, true);
+    var right = clipPoly(verts, lineX, false);
+    if (!left || !right) return null;
+    return { left: left, right: right };
+  }
+
+  function polyBoundsX(v) {
+    var lo = Infinity, hi = -Infinity;
+    for (var i = 0; i < v.length; i++) { if (v[i].x < lo) lo = v[i].x; if (v[i].x > hi) hi = v[i].x; }
+    return { minX: lo, maxX: hi };
+  }
+
+  function polyBoundsWidth(local) {
+    var b = polyBoundsX(local); return b.maxX - b.minX;
+  }
+
+  function makeRect(w, h) {
+    var hw = w / 2, hh = h / 2;
+    return [{ x: -hw, y: -hh }, { x: hw, y: -hh }, { x: hw, y: hh }, { x: -hw, y: hh }];
+  }
+
+  function round2(v) { return Math.round(v * 100) / 100; }
+  function escHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  /* ===== CANVAS ===== */
+
+  function resizeCanvas() {
+    var r = arena.getBoundingClientRect();
+    dpr = window.devicePixelRatio || 1;
+    aw = r.width; ah = r.height;
+    canvas.width = aw * dpr;
+    canvas.height = ah * dpr;
+  }
+
+  function css(prop) {
+    return getComputedStyle(document.documentElement).getPropertyValue(prop).trim();
+  }
+
+  /* ===== RENDER ===== */
+
+  function drawPoly(verts, color, alpha) {
+    if (verts.length < 3) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.moveTo(verts[0].x * dpr, verts[0].y * dpr);
+    for (var i = 1; i < verts.length; i++) ctx.lineTo(verts[i].x * dpr, verts[i].y * dpr);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawPolyLocal(local, cx, cy, angle, color, alpha) {
+    drawPoly(toWorld(local, cx, cy, angle), color, alpha);
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    var bladeX = aw / 2;
+    ctx.save();
+    ctx.strokeStyle = css('--blade');
+    ctx.globalAlpha = 0.12;
+    ctx.lineWidth = 2 * dpr;
+    ctx.setLineDash([8 * dpr, 6 * dpr]);
+    ctx.beginPath();
+    ctx.moveTo(bladeX * dpr, 0);
+    ctx.lineTo(bladeX * dpr, ah * dpr);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    if (cutAnim) { renderCutAnim(); return; }
+    if (!state || !state.running) return;
+
+    var objColor = players.length > 0 && players[state.currentIdx]
+      ? players[state.currentIdx].color : COLORS[0];
+    drawPolyLocal(state.poly, state.cx, state.cy, state.rotation, objColor, 1);
+
+    // Beacon
+    var areaPct = polyArea(state.poly) / state.initialArea * 100;
+    if (areaPct < TINY_AREA_THRESHOLD) {
+      var pulse = Math.sin(performance.now() / 100) * 0.5 + 0.5;
+      var r1 = 6 + pulse * 8, r2 = 2 + pulse * 3;
+      ctx.save();
+      var grad = ctx.createRadialGradient(
+        state.cx * dpr, state.cy * dpr, r2 * dpr,
+        state.cx * dpr, state.cy * dpr, r1 * dpr
+      );
+      grad.addColorStop(0, objColor);
+      grad.addColorStop(1, 'transparent');
+      ctx.globalAlpha = 0.2 + pulse * 0.15;
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(state.cx * dpr, state.cy * dpr, r1 * dpr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.4 + pulse * 0.2;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(state.cx * dpr, state.cy * dpr, 2 * dpr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Timer
+    if (state.running && !cutAnim) {
+      var sec = Math.ceil(roundTimer);
+      var urgent = sec <= 3;
+      ctx.save();
+      ctx.font = 'bold ' + (urgent ? 28 : 22) * dpr + "px 'Space Grotesk', sans-serif";
+      ctx.fillStyle = urgent ? css('--danger') : css('--fg-dim');
+      ctx.globalAlpha = urgent ? (0.7 + 0.3 * Math.sin(performance.now() / 150)) : 0.6;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(sec + 's', (aw / 2) * dpr, 16 * dpr);
+      ctx.restore();
+    }
+  }
+
+  function renderCutAnim() {
+    var a = cutAnim, t = a.frame / a.totalFrames;
+    var ease = 1 - Math.pow(1 - t, 3);
+    drawPoly(a.keptWorld, a.color, 0.7 + 0.3 * Math.sin(t * Math.PI * 3));
+    var slideDir = a.discardSide === 'left' ? -1 : 1;
+    var slideVerts = a.discardWorld.map(function(p) {
+      return { x: p.x + slideDir * ease * 120, y: p.y + ease * 40 };
+    });
+    drawPoly(slideVerts, a.color, Math.max(0, 0.5 - t * 0.5));
+    var kc = polyCentroid(a.keptWorld);
+    ctx.save();
+    ctx.font = 'bold ' + (12 * dpr) + "px 'Space Grotesk', sans-serif";
+    ctx.fillStyle = css('--success');
+    ctx.globalAlpha = Math.min(1, t * 3);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('남음', kc.x * dpr, (kc.y - 22) * dpr);
+    ctx.restore();
+  }
+
+  /* ===== UI ===== */
+
+  function showPhase(p) {
+    phase = p;
+    $('nick-screen').hidden = p !== 'nick';
+    menuOverlay.hidden = p !== 'menu';
+    waitingOverlay.hidden = p !== 'waiting';
+    resultOverlay.hidden = p !== 'result';
+    hudEl.style.display = (p === 'playing') ? '' : 'none';
+    if (p !== 'playing') knifeBtn.classList.add('hidden');
+    if (p === 'nick' || p === 'menu' || p === 'result') {
+      sizeInfo.textContent = '';
+      controlsHint.textContent = '';
+    }
+  }
+
+  function myTurn() {
+    if (!isOnline) return true;
+    return state && state.currentIdx === myIdx;
+  }
+
+  function updateHUD() {
+    if (!state) return;
+    roundInfo.textContent = 'ROUND ' + state.round;
+    var html = '';
+    for (var i = 0; i < players.length; i++) {
+      var p = players[i];
+      var active = p.idx === state.currentIdx;
+      var label = p.isMe ? (p.name || '나') : (p.name || 'P' + (p.idx + 1));
+      html += '<div class="player-chip' + (active ? ' active' : '') + '" style="background:' + p.color + ';color:#fff">' + escHtml(label) + '</div>';
+    }
+    playersHud.innerHTML = html;
+    if (phase === 'playing') {
+      knifeBtn.classList.toggle('hidden', !myTurn() || !state.running || !!cutAnim);
+    }
+  }
+
+  function updateSizeInfo() {
+    if (!state) return;
+    var pct = Math.round((polyArea(state.poly) / state.initialArea) * 100);
+    sizeInfo.textContent = '남은 면적: ' + pct + '%';
+  }
+
+  function renderWaitingRoom(list) {
+    var count = Math.min(list.length, 8);
+    $('player-count').textContent = count + ' / 8';
+
+    var html = '';
+    list.slice(0, 8).forEach(function(p, i) {
+      var isMe = p.id === mySocketId;
+      html += '<div class="player-row">' +
+        '<div class="player-dot" style="background:' + COLORS[i] + '"></div>' +
+        '<span class="player-name">' + escHtml(p.name) + (isMe ? ' (나)' : '') + '</span>' +
+        (p.isHost ? '<span class="player-badge">호스트</span>' : '') +
+        '</div>';
+    });
+    $('player-list').innerHTML = html;
+
+    if (isHost) {
+      $('game-start-btn').style.display = count >= 2 ? '' : 'none';
+      $('waiting-msg').style.display = 'none';
+    } else {
+      $('game-start-btn').style.display = 'none';
+      $('waiting-msg').style.display = '';
+    }
+  }
+
+  /* ===== SOCKET ===== */
+
+  function connectSocket() {
+    if (socket && socket.connected) return;
+    socket = io({ transports: ['websocket', 'polling'] });
+
+    socket.on('connect', function() {
+      mySocketId = socket.id;
+    });
+
+    socket.on('room-joined', function(data) {
+      roomCode = data.code;
+      isHost = data.isHost;
+      isOnline = true;
+      $('room-code-display').textContent = data.code.toUpperCase();
+      showPhase('waiting');
+    });
+
+    socket.on('room-error', function(msg) {
+      showToast(msg);
+    });
+
+    socket.on('player-list', function(list) {
+      if (phase === 'waiting') renderWaitingRoom(list);
+    });
+
+    socket.on('you-are-host', function() {
+      isHost = true;
+      if (phase === 'waiting') {
+        $('game-start-btn').style.display = '';
+        $('waiting-msg').style.display = 'none';
+      }
+    });
+
+    socket.on('game-start', handleGameStart);
+
+    socket.on('presence', function(data) {
+      if (!state || !state.running || cutAnim) return;
+      if (state.currentIdx === myIdx) return; // I'm playing, ignore
+      var cpId = players[state.currentIdx] && players[state.currentIdx].id;
+      if (data.id !== cpId) return;
+      var gs = data.gs;
+      if (gs.x != null) state.cx = gs.x;
+      if (gs.y != null) state.cy = gs.y;
+      if (gs.r != null) state.rotation = gs.r;
+      if (gs.t != null) roundTimer = gs.t;
+      if (gs.d != null) state.dir = gs.d;
+    });
+
+    socket.on('cut', handleRemoteCut);
+    socket.on('end', handleRemoteEnd);
+
+    socket.on('disconnect', function() {
+      if (phase === 'playing' || phase === 'waiting') {
+        showToast('서버와의 연결이 끊어졌습니다');
+      }
+    });
+  }
+
+  /* ===== ROOM ===== */
+
+  function generateCode() {
+    var chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+    var code = '';
+    for (var i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+  }
+
+  function createRoom() {
+    connectSocket();
+    var code = generateCode();
+    socket.emit('create-room', { code: code, name: myName });
+  }
+
+  function joinRoomByCode() {
+    var code = $('code-input').value.trim().toLowerCase();
+    if (code.length < 4) { showToast('코드를 입력해주세요'); return; }
+    connectSocket();
+    socket.emit('join-room', { code: code, name: myName });
+  }
+
+  function leaveRoom() {
+    if (socket) socket.emit('leave-room');
+    cancelAnimationFrame(animId);
+    isHost = false; isOnline = false; roomCode = '';
+    players = []; myIdx = -1; state = null; cutAnim = null;
+    showPhase('menu');
+  }
+
+  /* ===== GAME FLOW ===== */
+
+  function startLocalGame() {
+    isOnline = false;
+    players = [
+      { id: 'l1', idx: 0, color: COLORS[0], name: myName || 'P1', isMe: true },
+      { id: 'l2', idx: 1, color: COLORS[1], name: 'P2', isMe: true },
+    ];
+    myIdx = 0;
+    resizeCanvas();
+    beginNewGame(makeInitialGameData());
+  }
+
+  function makeInitialGameData() {
+    var objW = Math.min(aw * 0.30, 120);
+    var objH = Math.min(ah * 0.12, 60);
+    var poly = makeRect(objW, objH);
+    var fromLeft = Math.random() < 0.5;
+    var speed = aw * SPEED_FACTOR;
+    return { poly: poly, cx: fromLeft ? 0 : aw, cy: ah * 0.35, dir: fromLeft ? 1 : -1, speed: speed };
+  }
+
+  function startOnlineGame() {
+    if (!isHost || !socket) return;
+    resizeCanvas();
+    var gd = makeInitialGameData();
+    socket.emit('game-start', {
+      poly: gd.poly, cx: gd.cx, cy: gd.cy, d: gd.dir, s: gd.speed
+    });
+  }
+
+  function handleGameStart(data) {
+    resizeCanvas();
+    var playerList = data.players || [];
+
+    players = playerList.map(function(p, i) {
+      return {
+        id: p.id, idx: i, color: COLORS[i],
+        name: p.name, isMe: p.id === mySocketId,
+      };
+    });
+    myIdx = players.findIndex(function(p) { return p.isMe; });
+
+    beginNewGame({
+      poly: data.poly.map(function(v) { return { x: v.x, y: v.y }; }),
+      cx: data.cx, cy: data.cy, dir: data.d, speed: data.s,
+    });
+  }
+
+  function beginNewGame(gd) {
+    state = {
+      running: true, round: 1, currentIdx: 0,
+      poly: gd.poly, cx: gd.cx, cy: gd.cy, rotation: 0,
+      dir: gd.dir, speed: gd.speed, baseSpeed: gd.speed,
+      initialArea: polyArea(gd.poly),
+    };
+    roundTimer = ROUND_TIME_LIMIT;
+    cutAnim = null;
+    gameLog = [{ round: 1, event: 'start', area: round2(polyArea(gd.poly)) }];
+    showPhase('playing');
+    updateHUD();
+    updateSizeInfo();
+    controlsHint.textContent = myTurn() ? 'Q / E 회전 · 🔪 클릭하여 자르기' : '상대 턴 대기 중...';
+    lastTime = performance.now();
+    loop(lastTime);
+  }
+
+  /* ===== GAME LOOP ===== */
+
+  function loop(now) {
+    var dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+
+    if (state && state.running && !cutAnim) {
+      if (myTurn()) {
+        if (keysDown['KeyQ'] || keysDown['q']) state.rotation -= ROT_SPEED_KEY * dt;
+        if (keysDown['KeyE'] || keysDown['e']) state.rotation += ROT_SPEED_KEY * dt;
+
+        state.cx += state.dir * state.speed * dt;
+        var wb = polyBoundsX(toWorld(state.poly, state.cx, state.cy, state.rotation));
+        if (state.dir > 0 && wb.maxX >= aw) {
+          state.cx -= (wb.maxX - aw); state.dir = -1;
+        } else if (state.dir < 0 && wb.minX <= 0) {
+          state.cx -= wb.minX; state.dir = 1;
+        }
+
+        roundTimer -= dt;
+        if (roundTimer <= 0) { roundTimer = 0; handleTimeout(); return; }
+
+        if (isOnline && socket && now - lastPresenceTime > PRESENCE_INTERVAL) {
+          lastPresenceTime = now;
+          socket.emit('presence', {
+            x: Math.round(state.cx * 10) / 10,
+            y: Math.round(state.cy * 10) / 10,
+            r: Math.round(state.rotation * 1000) / 1000,
+            t: Math.round(roundTimer * 10) / 10,
+            d: state.dir,
+          });
+        }
+      }
+      // Spectator presence is handled by socket 'presence' event listener
+    }
+
+    if (cutAnim) {
+      cutAnim.frame++;
+      if (cutAnim.frame >= cutAnim.totalFrames) {
+        var cb = cutAnim.callback;
+        cutAnim = null;
+        render();
+        setTimeout(function() {
+          if (cb) cb();
+          lastTime = performance.now();
+          animId = requestAnimationFrame(loop);
+        }, 300);
+        return;
+      }
+    }
+
+    render();
+    animId = requestAnimationFrame(loop);
+  }
+
+  /* ===== SLICE ===== */
+
+  function handleSlice() {
+    if (!state || !state.running || cutAnim) return;
+    if (isOnline && !myTurn()) return;
+
+    var bladeX = aw / 2;
+    var worldVerts = toWorld(state.poly, state.cx, state.cy, state.rotation);
+    var result = splitPoly(worldVerts, bladeX);
+
+    if (!result) { handleMiss(); return; }
+
+    var areaL = polyArea(result.left);
+    var areaR = polyArea(result.right);
+    var totalArea = polyArea(worldVerts);
+    if (areaL < totalArea * 0.001 || areaR < totalArea * 0.001) { handleMiss(); return; }
+
+    var keepLeft = areaL <= areaR;
+    var keptWorld = keepLeft ? result.left : result.right;
+    var discardWorld = keepLeft ? result.right : result.left;
+    var keptArea = keepLeft ? areaL : areaR;
+
+    gameLog.push({
+      round: state.round,
+      player: players[state.currentIdx] ? players[state.currentIdx].name : '?',
+      event: 'cut',
+      beforeArea: round2(totalArea),
+      keptArea: round2(keptArea),
+      discardArea: round2(keepLeft ? areaR : areaL),
+      keepSide: keepLeft ? '왼쪽' : '오른쪽',
+    });
+
+    flashSlice();
+    state.running = false;
+
+    var cent = polyCentroid(keptWorld);
+    var newLocal = keptWorld.map(function(p) { return { x: p.x - cent.x, y: p.y - cent.y }; });
+    var nextRound = state.round + 1;
+    var nextIdx = (state.currentIdx + 1) % players.length;
+    var nextSpeed = state.baseSpeed * (1 + nextRound * SPEED_ROUND_ACCEL);
+    var fromLeft = Math.random() < 0.5;
+    var bw = polyBoundsWidth(newLocal);
+    var nextCx = fromLeft ? bw / 2 + 5 : aw - bw / 2 - 5;
+    var nextCy = ah * 0.35;
+    var nextDir = fromLeft ? 1 : -1;
+
+    if (isOnline && socket) {
+      socket.emit('cut', {
+        kw: keptWorld, dw: discardWorld,
+        ds: keepLeft ? 'right' : 'left',
+        c: players[state.currentIdx] ? players[state.currentIdx].color : COLORS[0],
+        np: newLocal, nx: nextCx, ny: nextCy, nd: nextDir, ns: nextSpeed,
+        nr: nextRound, ni: nextIdx,
+      });
+    }
+
+    var animColor = players[state.currentIdx] ? players[state.currentIdx].color : COLORS[0];
+    cutAnim = {
+      frame: 0, totalFrames: 45,
+      keptWorld: keptWorld, discardWorld: discardWorld,
+      discardSide: keepLeft ? 'right' : 'left',
+      color: animColor,
+      callback: function() { applyNextRound(newLocal, nextRound, nextIdx, nextCx, nextCy, nextDir, nextSpeed); },
+    };
+  }
+
+  function applyNextRound(newLocal, nr, ni, nx, ny, nd, ns) {
+    state.round = nr;
+    state.currentIdx = ni;
+    state.poly = newLocal;
+    state.rotation = 0;
+    state.speed = ns;
+    state.dir = nd;
+    state.cx = nx;
+    state.cy = ny;
+    roundTimer = ROUND_TIME_LIMIT;
+    gameLog.push({ round: nr, event: 'appear', area: round2(polyArea(newLocal)) });
+    state.running = true;
+    updateHUD();
+    updateSizeInfo();
+    controlsHint.textContent = myTurn() ? 'Q / E 회전 · 🔪 클릭하여 자르기' : '상대 턴 대기 중...';
+  }
+
+  function handleRemoteCut(d) {
+    if (!state) return;
+    var keptWorld = d.kw.map(function(v) { return { x: v.x, y: v.y }; });
+    var discardWorld = d.dw.map(function(v) { return { x: v.x, y: v.y }; });
+
+    gameLog.push({
+      round: state.round,
+      player: players[state.currentIdx] ? players[state.currentIdx].name : '?',
+      event: 'cut',
+      beforeArea: round2(polyArea(toWorld(state.poly, state.cx, state.cy, state.rotation))),
+      keptArea: round2(polyArea(keptWorld)),
+      discardArea: round2(polyArea(discardWorld)),
+      keepSide: d.ds === 'right' ? '왼쪽' : '오른쪽',
+    });
+
+    flashSlice();
+    state.running = false;
+
+    var newLocal = d.np.map(function(v) { return { x: v.x, y: v.y }; });
+    cutAnim = {
+      frame: 0, totalFrames: 45,
+      keptWorld: keptWorld, discardWorld: discardWorld,
+      discardSide: d.ds, color: d.c || COLORS[0],
+      callback: function() { applyNextRound(newLocal, d.nr, d.ni, d.nx, d.ny, d.nd, d.ns); },
+    };
+  }
+
+  /* ===== MISS / TIMEOUT ===== */
+
+  function handleMiss() {
+    flashMiss();
+    var li = state.currentIdx;
+    var name = players[li] ? players[li].name : 'P' + (li + 1);
+    var detail = name + '이(가) 허공을 베었습니다! (ROUND ' + state.round + ')';
+    if (isOnline && socket) socket.emit('end', { reason: 'miss', li: li, r: state.round, detail: detail });
+    endGame(li, detail);
+  }
+
+  function handleTimeout() {
+    flashMiss();
+    var li = state.currentIdx;
+    var name = players[li] ? players[li].name : 'P' + (li + 1);
+    var detail = name + ' 시간 초과! (ROUND ' + state.round + ')';
+    if (isOnline && socket) socket.emit('end', { reason: 'timeout', li: li, r: state.round, detail: detail });
+    endGame(li, detail);
+  }
+
+  function handleRemoteEnd(data) {
+    flashMiss();
+    endGame(data.li, data.detail);
+  }
+
+  function endGame(loserIdx, detail) {
+    cancelAnimationFrame(animId);
+    if (state) state.running = false;
+    cutAnim = null;
+    knifeBtn.classList.add('hidden');
+
+    setTimeout(function() {
+      var loserName = players[loserIdx] ? players[loserIdx].name : '?';
+      var loserColor = players[loserIdx] ? players[loserIdx].color : '#fff';
+
+      if (players.length === 2) {
+        var wi = loserIdx === 0 ? 1 : 0;
+        var wn = players[wi] ? players[wi].name : '?';
+        var wc = players[wi] ? players[wi].color : '#fff';
+        winnerText.innerHTML = '<span style="color:' + wc + '">' + escHtml(wn) + '</span> 승리!';
+      } else {
+        winnerText.innerHTML = '<span style="color:' + loserColor + '">' + escHtml(loserName) + '</span> 패배!';
+      }
+      resultDetail.textContent = detail;
+
+      var html = '<b>📋 라운드 로그</b><br>';
+      for (var i = 0; i < gameLog.length; i++) {
+        var e = gameLog[i];
+        if (e.event === 'start') {
+          html += '<span class="log-appear">R' + e.round + ' 시작: 면적 ' + e.area + 'px²</span><br>';
+        } else if (e.event === 'cut') {
+          html += '<span class="log-cut">R' + e.round + ' ' + escHtml(e.player) + ' 자름: ' + e.beforeArea + '→ ' + e.keepSide + ' ' + e.keptArea + 'px² 남김</span><br>';
+        } else if (e.event === 'appear') {
+          html += '<span class="log-appear">R' + e.round + ' 등장: 면적 ' + e.area + 'px²</span><br>';
+        }
+      }
+      $('game-log').innerHTML = html;
+      showPhase('result');
+    }, 600);
+  }
+
+  function flashMiss() {
+    arena.style.boxShadow = 'inset 0 0 60px rgba(255,50,50,0.5)';
+    setTimeout(function() { arena.style.boxShadow = ''; }, 400);
+  }
+  function flashSlice() {
+    arena.style.boxShadow = 'inset 0 0 40px rgba(255,255,255,0.3)';
+    setTimeout(function() { arena.style.boxShadow = ''; }, 200);
+  }
+
+  /* ===== INPUT ===== */
+
+  knifeBtn.addEventListener('pointerdown', function(e) {
+    e.preventDefault(); e.stopPropagation();
+    handleSlice();
+  });
+
+  arena.addEventListener('pointerdown', function(e) {
+    if (e.target === knifeBtn || e.target.closest('#knife-btn')) return;
+    if (phase !== 'playing' || !state || !state.running) return;
+    if (isOnline && !myTurn()) return;
+    dragActive = true;
+    dragLastX = e.clientX;
+    arena.setPointerCapture(e.pointerId);
+  });
+  arena.addEventListener('pointermove', function(e) {
+    if (!dragActive || !state || !state.running) return;
+    if (isOnline && !myTurn()) return;
+    var dx = e.clientX - dragLastX;
+    state.rotation += dx * ROT_SPEED_DRAG;
+    dragLastX = e.clientX;
+  });
+  arena.addEventListener('pointerup', function() { dragActive = false; });
+  arena.addEventListener('pointercancel', function() { dragActive = false; });
+
+  window.addEventListener('keydown', function(e) { keysDown[e.code] = true; keysDown[e.key] = true; });
+  window.addEventListener('keyup', function(e) { delete keysDown[e.code]; delete keysDown[e.key]; });
+
+  /* ===== NICKNAME ===== */
+
+  var nickInput = $('nick-input');
+  nickInput.addEventListener('input', function() {
+    $('nick-charcount').textContent = nickInput.value.length + ' / 8';
+    $('nick-error').textContent = ' ';
+  });
+
+  function confirmNickname() {
+    var name = nickInput.value.trim();
+    if (name.length < 1) { $('nick-error').textContent = '닉네임을 입력해주세요'; nickInput.focus(); return; }
+    if (name.length > 8) { $('nick-error').textContent = '8자 이내로 입력해주세요'; nickInput.focus(); return; }
+    myName = name;
+    try { localStorage.setItem('slice_nick', name); } catch(e) {}
+    showPhase('menu');
+  }
+
+  $('nick-confirm-btn').addEventListener('click', confirmNickname);
+  nickInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') confirmNickname(); });
+
+  /* ===== BUTTONS ===== */
+
+  $('create-btn').addEventListener('click', createRoom);
+  $('join-btn').addEventListener('click', joinRoomByCode);
+  $('code-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') joinRoomByCode(); });
+  $('local-btn').addEventListener('click', startLocalGame);
+  $('game-start-btn').addEventListener('click', startOnlineGame);
+  $('leave-btn').addEventListener('click', leaveRoom);
+
+  $('copy-btn').addEventListener('click', function() {
+    try {
+      navigator.clipboard.writeText(roomCode.toUpperCase());
+      this.textContent = '복사됨!';
+      var btn = this;
+      setTimeout(function() { btn.textContent = '복사'; }, 1500);
+    } catch(e) {}
+  });
+
+  $('restart-btn').addEventListener('click', function() {
+    if (isOnline && socket) {
+      socket.emit('back-to-waiting');
+      showPhase('waiting');
+    } else {
+      startLocalGame();
+    }
+  });
+
+  window.addEventListener('resize', function() {
+    resizeCanvas();
+    if (state) state.cy = ah * 0.35;
+  });
+
+  /* ===== INIT ===== */
+  resizeCanvas();
+  try {
+    var saved = localStorage.getItem('slice_nick');
+    if (saved && saved.length >= 1 && saved.length <= 8) {
+      nickInput.value = saved;
+      $('nick-charcount').textContent = saved.length + ' / 8';
+    }
+  } catch(e) {}
+  showPhase('nick');
+  nickInput.focus();
+})();
+</script>
+</body>
+</html>
